@@ -45,7 +45,7 @@ flowchart LR
 | 数据 | MySQL 8（`mysql/migrations`）；无 Postgres RLS，靠账号权限与应用逻辑 |
 | 抓取服务 | Go，`database/sql` + `go-sql-driver/mysql`，`golang.org/x/time/rate` 全局限流 |
 | 分析（Phase 2） | Python 3.11+（占位） |
-| 本地依赖可选 | `docker-compose.yml` 中的 Worker 镜像 + MySQL 8（profile `local-db`） |
+| 本地依赖可选 | `docker-compose.yml`：MySQL 8 + Worker + Next（`docker compose up -d --build`） |
 
 依赖版本与路由级清单见文末 **附录 A（自动快照）**；维护时请运行 `node scripts/update-tech-design.mjs` 刷新。
 
@@ -111,7 +111,7 @@ flowchart LR
 |------|------|
 | `web/` | Vercel 等；配置生产环境 `DATABASE_URL` |
 | Worker | Railway / Render / Fly 等常驻进程；`DATABASE_URL` 与调优环境变量 |
-| 数据库 | 托管 MySQL；执行 `mysql/migrations/*.sql` 或由 CI / 本地 `local-db` 初始化 |
+| 数据库 | 托管 MySQL；执行 `mysql/migrations/*.sql` 或由 CI / 本地 Docker MySQL 初始化 |
 
 ## 9. 演进路线
 

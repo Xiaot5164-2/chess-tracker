@@ -1,14 +1,14 @@
-# 默认：`docker compose up -d --build worker` 只跑 Worker（`DATABASE_URL` 来自 `backend-go/.env` 或宿主机环境）。
-# 本地 MySQL + Worker + 前端（Compose 内必须用服务名 `mysql`，勿用 127.0.0.1）：
-#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
-#   前端：http://localhost:3000
-# `docker-compose.local-db.yml` 会将 Worker / Web 的 `DATABASE_URL` 设为 `mysql://chess:chess@mysql:3306/chess_tracker` 并 `depends_on` 健康检查。
+# 一键本地全栈（MySQL + Worker + Next）：
+#   docker compose up -d --build
+# 浏览器 http://localhost:3000 · MySQL 宿主机 3306（chess/chess，库 chess_tracker）
 #
-# Worker 仍加载 `backend-go/.env`（`env_file`）；合并文件中的 `environment.DATABASE_URL` 会覆盖其中的同名变量。
+# 仅 Worker、连接外部库（无容器 MySQL）：
+#   docker compose -f docker-compose.worker.yml up -d --build
+#
+# Worker 加载 backend-go/.env；下方 environment 会覆盖其中的 DATABASE_URL / SYNC_GAMES（本地栈）。
 
 services:
   mysql:
-    profiles: ["local-db"]
     image: mysql:8.4
     container_name: chess-tracker-mysql
     environment:
@@ -28,6 +28,21 @@ services:
       retries: 10
       start_period: 30s
 
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: chess-tracker-web
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: mysql://chess:chess@mysql:3306/chess_tracker
+    depends_on:
+      mysql:
+        condition: service_healthy
+
   worker:
     build:
       context: ./backend-go
@@ -39,18 +54,20 @@ services:
     dns:
       - 8.8.8.8
       - 8.8.4.4
+    depends_on:
+      mysql:
+        condition: service_healthy
     environment:
-      # 棋钟：games→daily_game_stats；谜题：daily_puzzle_stats（非 hourly daily_stats）
       POLL_INTERVAL: ${POLL_INTERVAL:-1h}
       PUZZLE_SYNC_INTERVAL: ${PUZZLE_SYNC_INTERVAL:-10m}
       PUZZLE_HTTP_TIMEOUT: ${PUZZLE_HTTP_TIMEOUT:-12s}
       WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
       RUN_ONCE: ${RUN_ONCE:-}
-      # 对局增量周期与窗口（SYNC_GAMES / GAMES_BACKFILL_* 等仍以 backend-go/.env 为准）
       GAMES_SYNC_INTERVAL: ${GAMES_SYNC_INTERVAL:-10m}
       GAMES_INCREMENTAL_DAYS: ${GAMES_INCREMENTAL_DAYS:-2}
-      # 汇总盘数/胜负和到 daily_game_stats（近 N 个 UTC 日）
       DAILY_GAME_STATS_LOOKBACK_DAYS: ${DAILY_GAME_STATS_LOOKBACK_DAYS:-120}
+      DATABASE_URL: mysql://chess:chess@mysql:3306/chess_tracker
+      SYNC_GAMES: "1"
 
 volumes:
   mysql_data:

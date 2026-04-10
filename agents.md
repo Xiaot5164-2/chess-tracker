@@ -11,9 +11,9 @@ Monorepo for **Project Checkmate**: Chess.com student rankings and analytics. Ph
 | `web/` | Next.js 15 (App Router), Tailwind, Shadcn-style UI, Recharts, MySQL (`mysql2`) server-side；生产容器见 **`web/Dockerfile`**（`standalone`，默认 `PORT=8080`，适合 Cloud Run） |
 | `backend-go/` | Go **worker**（同步 Chess.com）与可选 **`cmd/api`** 只读 HTTP（`/health`、`/v1/ready`、`/v1/leaderboard`）；详见 `docs/API.md` |
 | `analytics-py/` | Phase 2 placeholder for PGN / analytics |
-| `mysql/migrations/` | MySQL 8 schema + leaderboard views（007 games 指标、008 daily 仪表盘列、009 列注释、011 `puzzle_snapshots` + 谜题日分析列；见 `docker-compose.local-db.yml`） |
+| `mysql/migrations/` | MySQL 8 schema + leaderboard views（007 games 指标、008 daily 仪表盘列、009 列注释、011 `puzzle_snapshots` + 谜题日分析列；本地栈由 `docker compose` 挂载到容器） |
 | `supabase/` | 历史 Postgres 迁移（已弃用）；新环境请只用 `mysql/migrations` |
-| `docker-compose.yml` | Worker 镜像 + 可选本地 MySQL（profile `local-db`） |
+| `docker-compose.yml` | 本地一键：**MySQL + Worker + Web**；仅 Worker（外部库）见 `docker-compose.worker.yml` |
 
 ## 自 Postgres（Supabase）迁到 MySQL
 
@@ -51,14 +51,13 @@ GOTOOLCHAIN=local go run ./cmd/repair-game-metrics
 # 从 games 全量重建 daily_game_stats（迁移 008 等变更列后执行）
 GOTOOLCHAIN=local go run ./cmd/refresh-daily-game-stats
 
-# Docker：重建并启动 Worker（可选 --local-db / --web-build，见脚本内注释）
+# Docker：./scripts/deploy.sh（默认全栈）或 --worker-only（见脚本内注释）
 ./scripts/deploy.sh
 
-# Go worker in Docker（仓库根目录；`backend-go/.env` 经 env_file 挂载）
-docker compose up -d --build worker
-# 本地 MySQL + Worker + Next 前端（同上合并文件；Worker/Web 在容器内需用主机名 mysql）：
-#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
-#   前端 http://localhost:3000
+# 本地全栈（MySQL + Worker + Web）
+docker compose up -d --build
+# 仅 Worker、外部 MySQL：
+#   docker compose -f docker-compose.worker.yml up -d --build
 ```
 
 ## Environment and secrets
@@ -66,9 +65,9 @@ docker compose up -d --build worker
 - **Never commit** real database passwords or connection strings with secrets.
 - **Next.js**：use `web/.env.local` (gitignored). **`DATABASE_URL=mysql://user:pass@host:3306/chess_tracker`**（读写同一库；生产可拆只读账号，需自行改代码/连接池）。`next.config.ts` 中已将 `mysql2` 列入 `serverExternalPackages`，避免 Server Action / RSC 打包导致运行时 500。
 - **Vercel / hosted**: set `DATABASE_URL` in the project dashboard (server-only).
-- **Worker**: `DATABASE_URL` 为 **MySQL**（`mysql://` 或 go-sql-driver 格式 DSN）。`DATABASE_URL_FALLBACK` 可选。`DATABASE_PREFER_IPV4=1` / `DATABASE_IPV6_ONLY=1` 控制 Worker 侧 TCP 拨号顺序（通过 go-sql-driver 自定义 Dial）。Docker：`docker compose build --no-cache worker && docker compose up -d worker`（避免旧镜像仍写已删除的 `daily_stats` 表；读取 `backend-go/.env`）。启动时会校验存在 `daily_game_stats` / `daily_puzzle_stats` / `puzzle_snapshots` 等（见 `backend-go/internal/store/schema.go`）。进程**每次启动**会先谜题同步 + 无对局棋钟 pub `/stats` 补分，再按 `PUZZLE_SYNC_INTERVAL` / `GAMES_SYNC_INTERVAL` 轮询。可选：`WORKER_CONCURRENCY`, `PUZZLE_HTTP_TIMEOUT`, `RUN_ONCE=1`。对局归档：`SYNC_GAMES=1`；首次回溯近 N 天设 `GAMES_BACKFILL_ON_START=1`（`GAMES_BACKFILL_DAYS` 默认 90）；日常增量由 `GAMES_SYNC_INTERVAL`（默认 `10m`）与 `GAMES_INCREMENTAL_DAYS`（默认 2）控制。详见 `docs/TECH_DESIGN.md` §5。
+- **Worker**: `DATABASE_URL` 为 **MySQL**（`mysql://` 或 go-sql-driver 格式 DSN）。`DATABASE_URL_FALLBACK` 可选。`DATABASE_PREFER_IPV4=1` / `DATABASE_IPV6_ONLY=1` 控制 Worker 侧 TCP 拨号顺序（通过 go-sql-driver 自定义 Dial）。Docker：本地全栈 `docker compose up -d --build`；仅 Worker（外部库）`docker compose -f docker-compose.worker.yml up -d --build`（避免旧镜像仍写已删除的 `daily_stats` 表；读取 `backend-go/.env`）。启动时会校验存在 `daily_game_stats` / `daily_puzzle_stats` / `puzzle_snapshots` 等（见 `backend-go/internal/store/schema.go`）。进程**每次启动**会先谜题同步 + 无对局棋钟 pub `/stats` 补分，再按 `PUZZLE_SYNC_INTERVAL` / `GAMES_SYNC_INTERVAL` 轮询。可选：`WORKER_CONCURRENCY`, `PUZZLE_HTTP_TIMEOUT`, `RUN_ONCE=1`。对局归档：`SYNC_GAMES=1`；首次回溯近 N 天设 `GAMES_BACKFILL_ON_START=1`（`GAMES_BACKFILL_DAYS` 默认 90）；日常增量由 `GAMES_SYNC_INTERVAL`（默认 `10m`）与 `GAMES_INCREMENTAL_DAYS`（默认 2）控制。详见 `docs/TECH_DESIGN.md` §5。
 - **前端 dev**：`npm run dev` 前会通过 **`predev`** 自动执行一次 `npm run pull-stats`（需 `web/.env.local` 的 `DATABASE_URL`）；跳过拉取用 `npm run dev:quick`。
-- **Schema**：新环境在 MySQL 上执行 `mysql/migrations/*.sql`（或本地 `local-db` 让容器自动执行）。
+- **Schema**：新环境在 MySQL 上执行 `mysql/migrations/*.sql`（或 `docker compose up` 时挂载到 MySQL 容器自动执行）。
 
 ## Database
 

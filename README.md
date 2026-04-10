@@ -30,7 +30,7 @@
 
 ### 1. 数据库
 
-在 MySQL 中创建库并执行 `mysql/migrations/` 下 SQL（按文件名顺序）。本地可用 Docker，参见 `docker-compose.yml` 与 `docker-compose.local-db.yml`。
+在 MySQL 中创建库并执行 `mysql/migrations/` 下 SQL（按文件名顺序）。本地可用 Docker：`docker compose up -d --build`（见下）自动挂载迁移目录。
 
 ### 2. 前端
 
@@ -54,10 +54,11 @@ DATABASE_URL="mysql://..." ./bin/worker
 **本地全栈（MySQL + Worker + 前端）**（仓库根目录；需已复制 `backend-go/.env`，可与 `.env.example` 对照）：
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
+docker compose up -d --build
+# 或：make up
 ```
 
-浏览器打开 **http://localhost:3000**；MySQL 映射宿主机 **3306**。仅 Worker：`docker compose up -d --build worker`。
+浏览器打开 **http://localhost:3000**；MySQL 映射宿主机 **3306**。仅 Worker、连外部库：`docker compose -f docker-compose.worker.yml up -d --build`。
 
 ### 4. 可选：Go 只读 API
 
