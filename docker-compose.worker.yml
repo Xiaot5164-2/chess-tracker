@@ -1,4 +1,5 @@
-# 仅 Go Worker，连接外部 MySQL（DATABASE_URL 在 backend-go/.env，勿写容器名 mysql）。
+# 仅 Go Worker，连接外部 MySQL。
+# DATABASE_URL：写在仓库根目录 .env（与 docker-compose 同级），或导出环境变量后再 up。
 #   docker compose -f docker-compose.worker.yml up -d --build
 
 services:
@@ -8,8 +9,6 @@ services:
       dockerfile: Dockerfile
     container_name: chess-tracker-worker
     restart: unless-stopped
-    env_file:
-      - ./backend-go/.env
     dns:
       - 8.8.8.8
       - 8.8.4.4
@@ -22,3 +21,4 @@ services:
       GAMES_SYNC_INTERVAL: ${GAMES_SYNC_INTERVAL:-10m}
       GAMES_INCREMENTAL_DAYS: ${GAMES_INCREMENTAL_DAYS:-2}
       DAILY_GAME_STATS_LOOKBACK_DAYS: ${DAILY_GAME_STATS_LOOKBACK_DAYS:-120}
+      DATABASE_URL: ${DATABASE_URL}

@@ -5,7 +5,7 @@
 # 仅 Worker、连接外部库（无容器 MySQL）：
 #   docker compose -f docker-compose.worker.yml up -d --build
 #
-# Worker 加载 backend-go/.env；下方 environment 会覆盖其中的 DATABASE_URL / SYNC_GAMES（本地栈）。
+# Worker 的环境变量以下方 environment 为准（勿依赖本机必须存在 backend-go/.env，便于 GCE/CI）。
 
 services:
   mysql:
@@ -49,8 +49,6 @@ services:
       dockerfile: Dockerfile
     container_name: chess-tracker-worker
     restart: unless-stopped
-    env_file:
-      - ./backend-go/.env
     dns:
       - 8.8.8.8
       - 8.8.4.4

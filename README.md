@@ -58,7 +58,8 @@ docker compose up -d --build
 # 或：make up
 ```
 
-浏览器打开 **http://localhost:3000**；MySQL 映射宿主机 **3306**。仅 Worker、连外部库：`docker compose -f docker-compose.worker.yml up -d --build`。
+浏览器打开 **http://localhost:3000**；MySQL 映射宿主机 **3306**。仅 Worker、连外部库：在**仓库根目录**创建 `.env`（勿提交）并写入 `DATABASE_URL=mysql://...`，再执行  
+`docker compose -f docker-compose.worker.yml up -d --build`。
 
 ### 4. 可选：Go 只读 API
 
