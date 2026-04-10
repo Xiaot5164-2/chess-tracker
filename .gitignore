@@ -24,6 +24,9 @@ scripts/.env.migrate
 scripts/.sync-pg-snapshot/
 *.log
 
+# Local DB dumps（勿提交）
+/backups/
+
 # OS / IDE
 .DS_Store
 .idea/
