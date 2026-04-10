@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  /** 供 Docker / Cloud Run 等容器仅拷贝 standalone 产物运行（见 web/Dockerfile） */
+  output: "standalone",
   serverExternalPackages: ["mysql2"],
   images: {
     remotePatterns: [

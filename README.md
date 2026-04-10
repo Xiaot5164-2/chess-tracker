@@ -51,7 +51,13 @@ GOTOOLCHAIN=local go build -o bin/worker ./cmd/worker
 DATABASE_URL="mysql://..." ./bin/worker
 ```
 
-Docker：`docker compose up -d --build worker`（仓库根目录，环境变量见 `backend-go/.env`）。
+**本地全栈（MySQL + Worker + 前端）**（仓库根目录；需已复制 `backend-go/.env`，可与 `.env.example` 对照）：
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
+```
+
+浏览器打开 **http://localhost:3000**；MySQL 映射宿主机 **3306**。仅 Worker：`docker compose up -d --build worker`。
 
 ### 4. 可选：Go 只读 API
 
@@ -72,6 +78,20 @@ DATABASE_URL="mysql://..." API_LISTEN=":8080" ./bin/api
 | Worker 构建 | `cd backend-go && GOTOOLCHAIN=local go build -o bin/worker ./cmd/worker` |
 
 完整列表与迁移、环境变量细节见 **AGENTS.md**。
+
+## 前端容器（Docker / Cloud Run）
+
+`web/Dockerfile` 使用 Next.js **`output: "standalone"`**，监听 **`PORT`**（镜像默认 **8080**，与 Cloud Run 一致）。
+
+```bash
+cd web
+docker build -t chess-tracker-web:local .
+docker run --rm -p 8080:8080 \
+  -e DATABASE_URL='mysql://user:pass@host:3306/chess_tracker' \
+  chess-tracker-web:local
+```
+
+部署到 **Google Cloud Run** 时：将镜像推送到 Artifact Registry，在 Cloud Run 服务中设置 **`DATABASE_URL`**（建议用 Secret Manager），若数据库在 VPC 内则配置 **VPC connector**。Worker 需单独部署。
 
 ## 文档
 

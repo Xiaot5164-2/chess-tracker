@@ -8,7 +8,7 @@ Monorepo for **Project Checkmate**: Chess.com student rankings and analytics. Ph
 
 | Path | Role |
 |------|------|
-| `web/` | Next.js 15 (App Router), Tailwind, Shadcn-style UI, Recharts, MySQL (`mysql2`) server-side |
+| `web/` | Next.js 15 (App Router), Tailwind, Shadcn-style UI, Recharts, MySQL (`mysql2`) server-side；生产容器见 **`web/Dockerfile`**（`standalone`，默认 `PORT=8080`，适合 Cloud Run） |
 | `backend-go/` | Go **worker**（同步 Chess.com）与可选 **`cmd/api`** 只读 HTTP（`/health`、`/v1/ready`、`/v1/leaderboard`）；详见 `docs/API.md` |
 | `analytics-py/` | Phase 2 placeholder for PGN / analytics |
 | `mysql/migrations/` | MySQL 8 schema + leaderboard views（007 games 指标、008 daily 仪表盘列、009 列注释、011 `puzzle_snapshots` + 谜题日分析列；见 `docker-compose.local-db.yml`） |
@@ -56,8 +56,9 @@ GOTOOLCHAIN=local go run ./cmd/refresh-daily-game-stats
 
 # Go worker in Docker（仓库根目录；`backend-go/.env` 经 env_file 挂载）
 docker compose up -d --build worker
-# 本地 MySQL（Worker 在容器内需用主机名 mysql，勿写 127.0.0.1）：
+# 本地 MySQL + Worker + Next 前端（同上合并文件；Worker/Web 在容器内需用主机名 mysql）：
 #   docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
+#   前端 http://localhost:3000
 ```
 
 ## Environment and secrets
