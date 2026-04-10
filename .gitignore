@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Build / cache
+.next/
+out/
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Env & local (never commit secrets)
+.env
+.env.local
+.env.*.local
+web/.env.local
+backend-go/.env
+scripts/.env.migrate
+scripts/.sync-pg-snapshot/
+*.log
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+
+# Go
+backend-go/bin/
+
+# Supabase CLI (link metadata; may include connection hints)
+supabase/.temp/

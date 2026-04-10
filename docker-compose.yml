@@ -1,0 +1,55 @@
+# 默认：`docker compose up -d --build worker` 只跑 Worker（`DATABASE_URL` 来自 `backend-go/.env` 或宿主机环境）。
+# 本地 MySQL（Compose 内必须用服务名 `mysql`，勿用 127.0.0.1）：
+#   docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
+# `docker-compose.local-db.yml` 会将 Worker 的 `DATABASE_URL` 设为 `mysql://chess:chess@mysql:3306/chess_tracker` 并 `depends_on` 健康检查。
+#
+# Worker 仍加载 `backend-go/.env`（`env_file`）；合并文件中的 `environment.DATABASE_URL` 会覆盖其中的同名变量。
+
+services:
+  mysql:
+    profiles: ["local-db"]
+    image: mysql:8.4
+    container_name: chess-tracker-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: chess_tracker
+      MYSQL_USER: chess
+      MYSQL_PASSWORD: chess
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  worker:
+    build:
+      context: ./backend-go
+      dockerfile: Dockerfile
+    container_name: chess-tracker-worker
+    restart: unless-stopped
+    env_file:
+      - ./backend-go/.env
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    environment:
+      # 棋钟：games→daily_game_stats；谜题：daily_puzzle_stats（非 hourly daily_stats）
+      POLL_INTERVAL: ${POLL_INTERVAL:-1h}
+      PUZZLE_SYNC_INTERVAL: ${PUZZLE_SYNC_INTERVAL:-10m}
+      PUZZLE_HTTP_TIMEOUT: ${PUZZLE_HTTP_TIMEOUT:-12s}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+      RUN_ONCE: ${RUN_ONCE:-}
+      # 对局增量周期与窗口（SYNC_GAMES / GAMES_BACKFILL_* 等仍以 backend-go/.env 为准）
+      GAMES_SYNC_INTERVAL: ${GAMES_SYNC_INTERVAL:-10m}
+      GAMES_INCREMENTAL_DAYS: ${GAMES_INCREMENTAL_DAYS:-2}
+      # 汇总盘数/胜负和到 daily_game_stats（近 N 个 UTC 日）
+      DAILY_GAME_STATS_LOOKBACK_DAYS: ${DAILY_GAME_STATS_LOOKBACK_DAYS:-120}
+
+volumes:
+  mysql_data:

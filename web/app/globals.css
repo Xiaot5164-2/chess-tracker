@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Chess.com–inspired dark theme (single palette, no flash between modes) */
+@layer base {
+  :root {
+    --background: 38 16% 9%;
+    --foreground: 42 25% 94%;
+    --card: 38 12% 14%;
+    --card-foreground: 42 25% 94%;
+    /* Classic chess.com green accent */
+    --primary: 86 54% 51%;
+    --primary-foreground: 38 18% 8%;
+    --secondary: 38 10% 19%;
+    --secondary-foreground: 42 20% 92%;
+    --muted: 38 8% 20%;
+    --muted-foreground: 40 12% 62%;
+    --accent: 38 11% 18%;
+    --accent-foreground: 42 25% 94%;
+    --destructive: 4 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 38 9% 22%;
+    --input: 38 9% 18%;
+    --ring: 86 54% 51%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(ellipse 100% 60% at 50% -15%, hsl(86 45% 22% / 0.22), transparent 55%),
+      linear-gradient(180deg, hsl(38 16% 9%) 0%, hsl(38 14% 11%) 40%, hsl(38 16% 9%) 100%);
+  }
+}

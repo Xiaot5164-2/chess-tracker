@@ -1,0 +1,13 @@
+# 与 docker-compose.yml 合并使用：Compose 网络内需用主机名 mysql，不能用 127.0.0.1。
+# 启动：docker compose -f docker-compose.yml -f docker-compose.local-db.yml --profile local-db up -d --build
+# 单次同步后退出：同上，另设 RUN_ONCE=1（或 docker compose ... run --rm -e RUN_ONCE=1 worker）
+
+services:
+  worker:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://chess:chess@mysql:3306/chess_tracker
+      # 本地栈默认开启对局同步（外部仅 worker 时请在 backend-go/.env 自行设置）
+      SYNC_GAMES: "1"
