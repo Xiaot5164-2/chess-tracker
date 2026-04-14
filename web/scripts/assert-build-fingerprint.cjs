@@ -8,7 +8,7 @@ const path = require("path");
 const webRoot = path.join(__dirname, "..");
 const nextDir = path.join(webRoot, ".next");
 const buildIdPath = path.join(nextDir, "BUILD_ID");
-const fpPath = path.join(nextDir, "project-checkmate-fingerprint.json");
+const fpPath = path.join(nextDir, "chess-tracker-fingerprint.json");
 const lockPath = path.join(webRoot, "package-lock.json");
 
 if (process.env.SKIP_BUILD_FINGERPRINT === "1") {

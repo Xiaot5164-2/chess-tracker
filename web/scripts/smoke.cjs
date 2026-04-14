@@ -39,17 +39,38 @@ function waitForReady() {
   });
 }
 
-function getStatus(pathname) {
+function getStatus(pathname, maxRedirects = 8) {
   return new Promise((resolve, reject) => {
-    const req = http.get(`http://127.0.0.1:${port}${pathname}`, (res) => {
-      res.resume();
-      resolve(res.statusCode ?? 0);
-    });
-    req.on("error", reject);
-    req.setTimeout(15000, () => {
-      req.destroy();
-      reject(new Error(`GET ${pathname} timeout`));
-    });
+    let url = `http://127.0.0.1:${port}${pathname}`;
+    let redirectsLeft = maxRedirects;
+
+    const doGet = () => {
+      const req = http.get(url, (res) => {
+        const code = res.statusCode ?? 0;
+        const loc = res.headers.location;
+        if ([301, 302, 307, 308].includes(code) && loc && redirectsLeft > 0) {
+          res.resume();
+          redirectsLeft -= 1;
+          try {
+            url = new URL(loc, url).href;
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          doGet();
+          return;
+        }
+        res.resume();
+        resolve(code);
+      });
+      req.on("error", reject);
+      req.setTimeout(15000, () => {
+        req.destroy();
+        reject(new Error(`GET ${pathname} timeout`));
+      });
+    };
+
+    doGet();
   });
 }
 

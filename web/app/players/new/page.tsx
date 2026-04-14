@@ -6,7 +6,7 @@ import Link from "next/link";
 import { addPlayer } from "./actions";
 import { addPlayerInitialState } from "@/lib/players/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function NewPlayerPage() {
   const [state, formAction, pending] = useActionState(addPlayer, addPlayerInitialState);
@@ -15,15 +15,11 @@ export default function NewPlayerPage() {
     <main className="mx-auto max-w-lg space-y-6 px-4 py-8 md:px-6 md:py-10">
       <div>
         <h1 className="font-heading text-2xl font-semibold tracking-tight sm:text-3xl">添加学生</h1>
-        <p className="mt-1 text-sm text-muted-foreground">通过 Chess.com 公开资料校验并写入数据库（MySQL）。</p>
       </div>
 
       <Card className="border-border/70 bg-card/90 shadow-xl shadow-black/40">
         <CardHeader>
           <CardTitle>Chess.com 账号</CardTitle>
-          <CardDescription>
-            会向 Chess.com 公开接口校验用户名，并自动填充头像；展示名可留空以使用 Chess.com 昵称。
-          </CardDescription>
         </CardHeader>
         <form action={formAction}>
           <CardContent className="space-y-4">
@@ -52,6 +48,11 @@ export default function NewPlayerPage() {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               />
             </div>
+            {pending ? (
+              <p className="text-sm text-muted-foreground" aria-live="polite">
+                正在提交…
+              </p>
+            ) : null}
             {state.message ? (
               <p
                 className={`text-sm ${state.ok ? "text-emerald-400" : "text-destructive"}`}

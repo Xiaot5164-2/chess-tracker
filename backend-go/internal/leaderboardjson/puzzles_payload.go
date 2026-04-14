@@ -66,6 +66,31 @@ func ratingAtOrBefore(series []puzzleDayRow, ymd string) *int {
 	return best.rating
 }
 
+// puzzleRatingBaselineWithSparseFallback：日历锚点无行时，用 endDate 之前最早一日分（与 TS 端一致）。
+func puzzleRatingBaselineWithSparseFallback(series []puzzleDayRow, endDate string, minusDays int) *int {
+	anchor, err := ymdAddDays(endDate, -minusDays)
+	if err != nil {
+		return nil
+	}
+	if at := ratingAtOrBefore(series, anchor); at != nil {
+		return at
+	}
+	var oldest *puzzleDayRow
+	for i := range series {
+		r := &series[i]
+		if r.statDate >= endDate || r.rating == nil {
+			continue
+		}
+		if oldest == nil || r.statDate < oldest.statDate {
+			oldest = r
+		}
+	}
+	if oldest == nil {
+		return nil
+	}
+	return oldest.rating
+}
+
 func sumAttemptsInclusive(series []puzzleDayRow, startYmd, endYmd string) *float64 {
 	if startYmd > endYmd {
 		return nil
@@ -130,7 +155,8 @@ func BuildPuzzlePayload(ctx context.Context, db *sql.DB) (*PuzzlePayloadOK, erro
 
 	latest, err := db.QueryContext(ctx,
 		`SELECT d.profile_id, x.mx AS end_stat_date,
-       d.rating_day_end, d.cum_attempts, d.cum_passed, d.cum_total_seconds
+       COALESCE(d.rating_day_end, d.rating_day_start) AS rating_day_end,
+       d.cum_attempts, d.cum_passed, d.cum_total_seconds
 FROM daily_puzzle_stats d
 INNER JOIN (
   SELECT profile_id, MAX(stat_date) AS mx
@@ -169,62 +195,54 @@ INNER JOIN (
 		return nil, err
 	}
 
-	var globalMax sql.NullString
-	_ = db.QueryRowContext(ctx, `SELECT MAX(stat_date) FROM daily_puzzle_stats`).Scan(&globalMax)
-	globalStr := ""
-	if globalMax.Valid {
-		globalStr = strings.TrimSpace(globalMax.String)
-		if len(globalStr) >= 10 {
-			globalStr = globalStr[:10]
-		}
-	}
-
 	seriesBy := map[string][]puzzleDayRow{}
-	if globalStr != "" {
-		fromYmd, err := ymdAddDays(globalStr, -45)
-		if err != nil {
+	hist, err := db.QueryContext(ctx,
+		`SELECT d.profile_id, d.stat_date,
+       COALESCE(d.rating_day_end, d.rating_day_start) AS rating_day_end,
+       d.attempts
+       FROM daily_puzzle_stats d
+       INNER JOIN (
+         SELECT profile_id, MAX(stat_date) AS mx
+         FROM daily_puzzle_stats
+         GROUP BY profile_id
+       ) x ON d.profile_id = x.profile_id
+          AND d.stat_date >= DATE_SUB(x.mx, INTERVAL 400 DAY)
+       ORDER BY d.profile_id, d.stat_date ASC`)
+	if err != nil {
+		return nil, fmt.Errorf("puzzle hist: %w", err)
+	}
+	for hist.Next() {
+		var pid string
+		var sd sql.NullString
+		var rating, att sql.NullInt64
+		if err := hist.Scan(&pid, &sd, &rating, &att); err != nil {
+			hist.Close()
 			return nil, err
 		}
-		hist, err := db.QueryContext(ctx,
-			`SELECT profile_id, stat_date, rating_day_end, attempts
-       FROM daily_puzzle_stats WHERE stat_date >= ? ORDER BY profile_id, stat_date ASC`,
-			fromYmd)
-		if err != nil {
-			return nil, fmt.Errorf("puzzle hist: %w", err)
+		s := ""
+		if sd.Valid {
+			s = strings.TrimSpace(sd.String)
+			if len(s) >= 10 {
+				s = s[:10]
+			}
 		}
-		for hist.Next() {
-			var pid string
-			var sd sql.NullString
-			var rating, att sql.NullInt64
-			if err := hist.Scan(&pid, &sd, &rating, &att); err != nil {
-				hist.Close()
-				return nil, err
-			}
-			s := ""
-			if sd.Valid {
-				s = strings.TrimSpace(sd.String)
-				if len(s) >= 10 {
-					s = s[:10]
-				}
-			}
-			if s == "" {
-				continue
-			}
-			var rPtr, aPtr *int
-			if rating.Valid {
-				v := int(rating.Int64)
-				rPtr = &v
-			}
-			if att.Valid {
-				v := int(att.Int64)
-				aPtr = &v
-			}
-			seriesBy[pid] = append(seriesBy[pid], puzzleDayRow{statDate: s, rating: rPtr, attempts: aPtr})
+		if s == "" {
+			continue
 		}
-		hist.Close()
-		if err := hist.Err(); err != nil {
-			return nil, err
+		var rPtr, aPtr *int
+		if rating.Valid {
+			v := int(rating.Int64)
+			rPtr = &v
 		}
+		if att.Valid {
+			v := int(att.Int64)
+			aPtr = &v
+		}
+		seriesBy[pid] = append(seriesBy[pid], puzzleDayRow{statDate: s, rating: rPtr, attempts: aPtr})
+	}
+	hist.Close()
+	if err := hist.Err(); err != nil {
+		return nil, err
 	}
 
 	for pid, ser := range seriesBy {
@@ -290,10 +308,8 @@ INNER JOIN (
 		endDate := m.endDate
 		if endDate != "" && m.rating.Valid {
 			rEnd := int(m.rating.Int64)
-			anchor7, _ := ymdAddDays(endDate, -7)
-			anchor30, _ := ymdAddDays(endDate, -30)
-			r7 := ratingAtOrBefore(ser, anchor7)
-			r30 := ratingAtOrBefore(ser, anchor30)
+			r7 := puzzleRatingBaselineWithSparseFallback(ser, endDate, 7)
+			r30 := puzzleRatingBaselineWithSparseFallback(ser, endDate, 30)
 			if r7 != nil {
 				d := float64(rEnd - *r7)
 				if isFinite(d) {

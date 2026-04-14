@@ -84,5 +84,5 @@ compose ps
 if [[ "$WORKER_ONLY" -eq 1 ]]; then
 	echo "完成。仅 Worker；前端请单独部署。"
 else
-	echo "完成。本地前端: http://localhost:3000"
+	echo "完成。本地前端（docker-compose web）: http://localhost:${WEB_HOST_PORT:-8000}/"
 fi

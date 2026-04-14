@@ -89,10 +89,6 @@ export function PuzzleLeaderboardClient() {
             </Link>
           </p>
           <h1 className="mt-1 font-heading text-3xl font-semibold tracking-tight sm:text-4xl">谜题榜</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            展示 Chess.com 谜题数据：当前分、近 7/30 日分数涨跌、累计做题、近 7/30 日做题量、通过率、平均每题用时（窗口按每位棋手最新
-            <code className="rounded bg-muted px-1">stat_date</code> 为「当前日」的 UTC 日历推算）。
-          </p>
           {snapLabel != null && snapInstant != null && !Number.isNaN(snapInstant.getTime()) ? (
             <p className="mt-2 text-sm font-medium text-primary">
               数据最近更新：

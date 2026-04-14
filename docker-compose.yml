@@ -1,6 +1,10 @@
 # 一键本地全栈（MySQL + Worker + Next）：
 #   docker compose up -d --build
-# 浏览器 http://localhost:3000 · MySQL 宿主机 3306（chess/chess，库 chess_tracker）
+# 改前端后自动重建 web（需 Docker Compose v2.22+）：
+#   cd web && npm run docker:watch
+# Web：宿主机端口由 WEB_HOST_PORT 决定（默认 8000，避免本机 :80 常被 `ssh -R` 等占用导致打不开）。
+# 公网/域名：在仓库根 `.env` 设 WEB_HOST_PORT=80（或前置 Nginx 反代到 8000）。HTTPS 建议在 CDN/Nginx/Caddy 终止。
+# MySQL 宿主机 3306（chess/chess，库 chess_tracker）。
 #
 # 仅 Worker、连接外部库（无容器 MySQL）：
 #   docker compose -f docker-compose.worker.yml up -d --build
@@ -32,10 +36,17 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
+    develop:
+      watch:
+        - action: rebuild
+          path: ./web
+          ignore:
+            - node_modules/
+            - .next/
     container_name: chess-tracker-web
     restart: unless-stopped
     ports:
-      - "3000:8080"
+      - "${WEB_HOST_PORT:-8000}:8080"
     environment:
       NODE_ENV: production
       DATABASE_URL: mysql://chess:chess@mysql:3306/chess_tracker

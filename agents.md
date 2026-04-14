@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Monorepo for **Project Checkmate**: Chess.com student rankings and analytics. Phase 1 focuses on Rapid/Blitz/Bullet ratings and trends; Phase 2 adds PGN parsing and opening stats (Python).
+Monorepo for **Chess Tracker**: Chess.com student rankings and analytics. Phase 1 focuses on Rapid/Blitz/Bullet ratings and trends; Phase 2 adds PGN parsing and opening stats (Python).
 
 ## Layout
 

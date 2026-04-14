@@ -52,12 +52,12 @@ export type LeaderboardPayloadErr = {
 
 export type LeaderboardPayload = LeaderboardPayloadOk | LeaderboardPayloadErr;
 
-/** mysql2 可能把 CHAR(36) 以 Buffer 返回，统一成与 profiles.id 一致的字符串。 */
+/** mysql2 可能把 CHAR(36) 以 Buffer 返回，统一成与 profiles.id 一致的字符串（trim 避免 CHAR 尾空格导致 Map 键不一致）。 */
 export function normProfileId(v: unknown): string {
   if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) {
-    return v.toString("utf8");
+    return v.toString("utf8").trim();
   }
-  return String(v ?? "");
+  return String(v ?? "").trim();
 }
 
 function pickLeaderboardFromViewRow(

@@ -1,4 +1,4 @@
-# Project Checkmate — 技术设计
+# Chess Tracker — 技术设计
 
 ## 1. 目标与范围
 

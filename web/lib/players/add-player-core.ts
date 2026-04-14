@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
 
+import { after } from "next/server";
+import type { Pool } from "mysql2/promise";
+
 import { fetchChessComPuzzleCurrentRating } from "@/lib/chesscom/puzzle-callback";
 import { fetchChessComPlayer } from "@/lib/chesscom/pub-player";
 import { isDuplicateKeyError } from "@/lib/db/mysql-errors";
@@ -22,6 +25,53 @@ export type AddPlayerInput = {
 function logDev(stage: string, err: unknown) {
   if (process.env.NODE_ENV === "development") {
     console.error(`[addPlayer:${stage}]`, err);
+  }
+}
+
+/** 写入 profiles 之后：拉取对局归档、重算日表、谜题快照（不阻塞添加接口）。 */
+async function postInsertProfileSync(pool: Pool, profileId: string, chessUsername: string): Promise<void> {
+  const puzzlePromise = fetchChessComPuzzleCurrentRating(chessUsername);
+
+  const backfill = await syncProfileGamesBackfill(pool, profileId, chessUsername);
+  if (!backfill.ok) {
+    logDev(
+      "syncProfileGamesBackfill",
+      new Error(`近 ${configuredGamesBackfillDays()} 天对局拉取失败：${backfill.message}`),
+    );
+  } else {
+    try {
+      await refreshDailyGameStatsFromGames(pool);
+      try {
+        await seedDailyGameStatsWhenNoGames(pool);
+      } catch (se) {
+        logDev("seedDailyGameStatsWhenNoGames", se);
+      }
+    } catch (re) {
+      logDev(
+        "refreshDailyGameStatsFromGames",
+        new Error(
+          `已写入 ${backfill.gamesUpserted} 盘对局，但 daily_game_stats 重算失败：${re instanceof Error ? re.message : String(re)}`,
+        ),
+      );
+    }
+  }
+
+  const puzzleCurrent = (await puzzlePromise) ?? null;
+  const puzzleSync = await upsertDailyPuzzleStats(pool, profileId, puzzleCurrent);
+  if (!puzzleSync.ok) {
+    logDev("upsertDailyPuzzleStats", new Error(puzzleSync.message));
+  }
+}
+
+function schedulePostInsertProfileSync(pool: Pool, profileId: string, chessUsername: string) {
+  const run = () =>
+    void postInsertProfileSync(pool, profileId, chessUsername).catch((e) => {
+      console.error("[addPlayer:postInsertProfileSync]", e);
+    });
+  try {
+    after(run);
+  } catch {
+    run();
   }
 }
 
@@ -81,40 +131,12 @@ export async function addPlayerCore(input: AddPlayerInput): Promise<AddPlayerSta
       return { ok: false, message: e instanceof Error ? e.message : String(e) };
     }
 
-    let syncNote = "";
-    try {
-      const puzzlePromise = fetchChessComPuzzleCurrentRating(pub.username);
+    schedulePostInsertProfileSync(pool, id, pub.username);
 
-      const backfill = await syncProfileGamesBackfill(pool, id, pub.username);
-      if (!backfill.ok) {
-        syncNote = `（近 ${configuredGamesBackfillDays()} 天对局拉取失败：${backfill.message}）`;
-      } else {
-        try {
-          await refreshDailyGameStatsFromGames(pool);
-          try {
-            await seedDailyGameStatsWhenNoGames(pool);
-          } catch (se) {
-            logDev("seedDailyGameStatsWhenNoGames", se);
-          }
-          syncNote = ` 已拉取近 ${configuredGamesBackfillDays()} 天归档，写入 ${backfill.gamesUpserted} 盘对局并汇总 daily_game_stats。`;
-        } catch (re) {
-          syncNote = `（已写入 ${backfill.gamesUpserted} 盘对局，但 daily_game_stats 重算失败：${re instanceof Error ? re.message : String(re)}）`;
-        }
-      }
-
-      const puzzleCurrent = (await puzzlePromise) ?? null;
-      const puzzleSync = await upsertDailyPuzzleStats(pool, id, puzzleCurrent);
-      if (!puzzleSync.ok) {
-        syncNote += `（谜题分写入失败：${puzzleSync.message}）`;
-      } else if (puzzleCurrent != null) {
-        syncNote += " 已写入谜题当日快照。";
-      }
-    } catch (e) {
-      logDev("syncStats", e);
-      syncNote += `（同步扩展失败：${e instanceof Error ? e.message : String(e)}）`;
-    }
-
-    return { ok: true, message: `已添加 ${pub.username}。${syncNote}` };
+    return {
+      ok: true,
+      message: `已通过：已添加 ${pub.username}。近 ${configuredGamesBackfillDays()} 天对局与谜题分值在后台同步，稍后刷新榜单即可。`,
+    };
   } catch (e) {
     logDev("unexpected", e);
     return {

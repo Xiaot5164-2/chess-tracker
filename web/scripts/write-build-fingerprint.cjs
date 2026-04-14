@@ -19,4 +19,4 @@ const pkg = JSON.parse(fs.readFileSync(path.join(webRoot, "package.json"), "utf8
 const nextVer = (pkg.dependencies && pkg.dependencies.next) || "";
 
 const body = JSON.stringify({ lockSha256, next: nextVer }, null, 0);
-fs.writeFileSync(path.join(nextDir, "project-checkmate-fingerprint.json"), body, "utf8");
+fs.writeFileSync(path.join(nextDir, "chess-tracker-fingerprint.json"), body, "utf8");

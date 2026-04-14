@@ -1,4 +1,4 @@
-# Project Checkmate（Chess Tracker）
+# Chess Tracker
 
 面向 Chess.com 学员的 **对局排行榜**（Rapid / Blitz / Bullet）、**谜题榜** 与分数趋势；数据写入 **MySQL**，由 **Go Worker** 同步 Chess.com 公开接口。
 

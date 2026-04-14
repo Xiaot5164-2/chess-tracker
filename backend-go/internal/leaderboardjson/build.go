@@ -96,11 +96,11 @@ func ParsePeriodDays(s string) int {
 func normProfileID(b any) string {
 	switch v := b.(type) {
 	case []byte:
-		return string(v)
+		return strings.TrimSpace(string(v))
 	case string:
-		return v
+		return strings.TrimSpace(v)
 	default:
-		return fmt.Sprint(v)
+		return strings.TrimSpace(fmt.Sprint(v))
 	}
 }
 

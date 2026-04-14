@@ -1,4 +1,4 @@
--- Chess Tracker (Project Checkmate) — core schema
+-- Chess Tracker — core schema
 -- Extensions
 create extension if not exists "pgcrypto";
 

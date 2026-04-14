@@ -20,8 +20,7 @@ export function SiteHeader() {
           >
             ♔
           </span>
-          <span className="hidden sm:inline">Project Checkmate</span>
-          <span className="sm:hidden">Checkmate</span>
+          <span className="max-w-[11rem] truncate sm:max-w-none">Chess Tracker</span>
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-1 sm:gap-2" aria-label="主导航">
           {navItems.map((item) => (

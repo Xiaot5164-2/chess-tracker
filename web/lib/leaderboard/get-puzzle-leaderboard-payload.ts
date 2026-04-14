@@ -100,6 +100,32 @@ function ratingAtOrBefore(series: PuzzleDayRow[], ymd: string): number | null {
   return best?.rating ?? null;
 }
 
+/**
+ * 先按 UTC 锚点日取「最近一行分」；若日表尚不足覆盖该锚点（常见于仅同步近几日），
+ * 则用严格早于 endDate 的最早一日分作基线，使近 7/30 日列在短历史上仍有可读涨跌。
+ */
+export function puzzleRatingBaselineWithSparseFallback(
+  series: PuzzleDayRow[],
+  endDate: string,
+  minusCalendarDays: number,
+): number | null {
+  const anchor = addUtcDays(endDate, -minusCalendarDays);
+  const atAnchor = ratingAtOrBefore(series, anchor);
+  if (atAnchor != null) {
+    return atAnchor;
+  }
+  let oldest: PuzzleDayRow | null = null;
+  for (const r of series) {
+    if (r.statDate >= endDate || r.rating == null || !Number.isFinite(r.rating)) {
+      continue;
+    }
+    if (!oldest || r.statDate < oldest.statDate) {
+      oldest = r;
+    }
+  }
+  return oldest?.rating ?? null;
+}
+
 /** 含端点 [startYmd, endYmd] 内 attempts 求和（该窗口内任一日有行则返回数字，缺省按 0 累加） */
 function sumAttemptsInclusive(series: PuzzleDayRow[], startYmd: string, endYmd: string): number | null {
   if (startYmd > endYmd) return null;
@@ -165,7 +191,7 @@ export async function getPuzzleLeaderboardPayload(poolOverride?: Pool): Promise<
     const [latestRows] = await pool.query<RowDataPacket[]>(
       `SELECT d.profile_id,
               x.mx AS end_stat_date,
-              d.rating_day_end,
+              COALESCE(d.rating_day_end, d.rating_day_start) AS rating_day_end,
               d.cum_attempts,
               d.cum_passed,
               d.cum_total_seconds
@@ -201,37 +227,37 @@ export async function getPuzzleLeaderboardPayload(poolOverride?: Pool): Promise<
       }
     }
 
-    const [globalMaxRow] = await pool.query<RowDataPacket[]>(
-      `SELECT MAX(stat_date) AS mx FROM daily_puzzle_stats`,
-    );
-    const globalMaxStr = statDateToYmd(globalMaxRow[0]?.mx);
-
     const seriesByProfile = new Map<string, PuzzleDayRow[]>();
-    if (globalMaxStr) {
-      const fromYmd = addUtcDays(globalMaxStr, -45);
-      const [hist] = await pool.query<RowDataPacket[]>(
-        `SELECT profile_id, stat_date, rating_day_end, attempts
+    /** 按「每位棋手各自最新 stat_date」回溯，避免全库 MAX 很新时把旧棋手的锚点日裁掉；分用 COALESCE 兼容仅填 start 的旧行。 */
+    const [hist] = await pool.query<RowDataPacket[]>(
+      `SELECT d.profile_id,
+              d.stat_date,
+              COALESCE(d.rating_day_end, d.rating_day_start) AS rating_day_end,
+              d.attempts
+       FROM daily_puzzle_stats d
+       INNER JOIN (
+         SELECT profile_id, MAX(stat_date) AS mx
          FROM daily_puzzle_stats
-         WHERE stat_date >= ?
-         ORDER BY profile_id, stat_date ASC`,
-        [fromYmd],
-      );
-      for (const r of hist ?? []) {
-        const pid = normProfileId(r.profile_id);
-        if (!pid) continue;
-        const sd = statDateToYmd(r.stat_date) ?? "";
-        if (!sd) continue;
-        const rating = safeNum(r.rating_day_end);
-        const attemptsDay = safeNum(r.attempts);
-        if (!seriesByProfile.has(pid)) {
-          seriesByProfile.set(pid, []);
-        }
-        seriesByProfile.get(pid)!.push({
-          statDate: sd,
-          rating: rating != null ? Math.round(rating) : null,
-          attempts: attemptsDay != null ? Math.round(attemptsDay) : null,
-        });
+         GROUP BY profile_id
+       ) x ON d.profile_id = x.profile_id
+          AND d.stat_date >= DATE_SUB(x.mx, INTERVAL 400 DAY)
+       ORDER BY d.profile_id, d.stat_date ASC`,
+    );
+    for (const r of hist ?? []) {
+      const pid = normProfileId(r.profile_id);
+      if (!pid) continue;
+      const sd = statDateToYmd(r.stat_date) ?? "";
+      if (!sd) continue;
+      const rating = safeNum(r.rating_day_end);
+      const attemptsDay = safeNum(r.attempts);
+      if (!seriesByProfile.has(pid)) {
+        seriesByProfile.set(pid, []);
       }
+      seriesByProfile.get(pid)!.push({
+        statDate: sd,
+        rating: rating != null ? Math.round(rating) : null,
+        attempts: attemptsDay != null ? Math.round(attemptsDay) : null,
+      });
     }
 
     for (const [pid, series] of seriesByProfile) {
@@ -275,8 +301,8 @@ export async function getPuzzleLeaderboardPayload(poolOverride?: Pool): Promise<
       let attemptsLast30Days: number | null = null;
 
       if (endDate != null && m?.rating != null) {
-        const r7 = ratingAtOrBefore(series, addUtcDays(endDate, -7));
-        const r30 = ratingAtOrBefore(series, addUtcDays(endDate, -30));
+        const r7 = puzzleRatingBaselineWithSparseFallback(series, endDate, 7);
+        const r30 = puzzleRatingBaselineWithSparseFallback(series, endDate, 30);
         if (r7 != null) {
           ratingDelta7 = m.rating - r7;
           if (!Number.isFinite(ratingDelta7)) ratingDelta7 = null;

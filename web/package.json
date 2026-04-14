@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "predev": "npm run pull-stats",
@@ -15,7 +15,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "npm run build && node scripts/smoke.cjs",
-    "pull-stats": "node scripts/pull-stats.mjs"
+    "pull-stats": "node scripts/pull-stats.mjs",
+    "docker:watch": "docker compose -f ../docker-compose.yml watch web"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.2",
